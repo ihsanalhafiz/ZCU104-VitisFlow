@@ -13,4 +13,4 @@ module purge
 module load xilinx/2023.2
 
 # --- Run compilation ---
-make build
+make build KERNEL_COMPILE=adder

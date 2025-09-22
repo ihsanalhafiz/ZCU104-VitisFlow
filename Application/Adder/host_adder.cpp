@@ -207,14 +207,7 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    // Optional: print kernel execution time
-    if (event()) {
-        cl_ulong start = event.getProfilingInfo<CL_PROFILING_COMMAND_START>();
-        cl_ulong end   = event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
-        double ms = static_cast<double>(end - start) * 1e-6;
-        std::cout << std::fixed << std::setprecision(3)
-                  << "Kernel time: " << ms << " ms\n";
-    }
+    // Optional: print kernel execution time (disabled to avoid potential at-exit issues)
 
     return EXIT_SUCCESS;
 }
