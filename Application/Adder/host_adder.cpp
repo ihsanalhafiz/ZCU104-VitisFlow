@@ -208,6 +208,7 @@ int main(int argc, char **argv) {
     }
 
     // Optional: print kernel execution time (disabled to avoid potential at-exit issues)
+    std::exit(0);
 
     return EXIT_SUCCESS;
 }
