@@ -102,8 +102,8 @@ CMD_ARGS = $(BUILD_DIR)/$(KERNEL_COMPILE).xclbin
 SDCARD := sd_card
 
 include ../../common/includes/opencl/opencl.mk
-CXXFLAGS += $(opencl_CXXFLAGS) -Wall -O3 -g -std=c++17 `pkg-config 
-LDFLAGS += $(opencl_LDFLAGS) `pkg-config 
+CXXFLAGS += $(opencl_CXXFLAGS) -Wall -O3 -g -std=c++17
+LDFLAGS += $(opencl_LDFLAGS)
 
 
 ifeq ($(findstring nodma, $(DEVICE)), nodma)
