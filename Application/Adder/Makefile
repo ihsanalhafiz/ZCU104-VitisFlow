@@ -49,6 +49,11 @@ help::
 	$(ECHO) "      Command to build host application."
 	$(ECHO) "      By default, HOST_ARCH=x86. HOST_ARCH and EDGE_COMMON_SW is required for SoC shells"
 	$(ECHO) ""
+	$(ECHO) "  make print"
+	$(ECHO) "      Show effective configuration variables."
+
+## Default goal
+.DEFAULT_GOAL := all
 
 ############################## Setting up Project Variables ##############################
 # Points to top directory of Git repository
@@ -57,20 +62,22 @@ COMMON_REPO ?= $(realpath $(dir $(firstword $(MAKEFILE_LIST))))
 PWD = $(shell readlink -f .)
 XF_PROJ_ROOT = $(shell readlink -f $(COMMON_REPO))
 
-# Define common parameters
-PARAM_DEFS := -D H_IN=784 -D M_IN=2 -D H_HID=32 -D M_HID=128 -D H_UT=1 -D M_UT=10 -D NACTHI=64 -D NSILHI=64
+EDGE_COMMON_SW := .
+
+DEVICE := /opt/xilinx/2025.1/Vitis/base_platforms/xilinx_zcu104_base_202510_1/xilinx_zcu104_base_202510_1.xpfm
 
 TARGET := hw
 HOST_ARCH := aarch64
 SYSROOT := 
 
-HOST_COMPILE := mnistmain_FPGA
+HOST_COMPILE := host_adder
 
-HOST_MAIN_SRC := ./test/MNIST_ZCU104/$(HOST_COMPILE).cpp
+HOST_MAIN_SRC := ./$(HOST_COMPILE).cpp
 
 include ./utils.mk
 
-KERNEL_COMPILE := BCPNN_Kernel
+KERNEL_COMPILE := adder
+FREQUENCY := 300
 
 XSA := 
 ifneq ($(DEVICE), )
@@ -90,7 +97,7 @@ VPP := v++
 CMD_ARGS = $(BUILD_DIR)/$(KERNEL_COMPILE).xclbin
 SDCARD := sd_card
 
-include $(XF_PROJ_ROOT)/common/includes/opencl/opencl.mk
+include ../../common/includes/opencl/opencl.mk
 CXXFLAGS += $(opencl_CXXFLAGS) -Wall -O3 -g -std=c++17 `pkg-config --cflags opencv4` -pthread -lgdal -llapack -lblas
 LDFLAGS += $(opencl_LDFLAGS) `pkg-config --libs opencv4` -pthread -lgdal -llapack -lblas
 
@@ -101,14 +108,14 @@ endif
 
 ############################## Setting up Host Variables ##############################
 #Include Required Host Source Files
-CXXFLAGS += -I$(XF_PROJ_ROOT)/common/includes/xcl2 
-CXXFLAGS += -I$(XF_PROJ_ROOT)/HLS_library/include
-HOST_SRCS += $(XF_PROJ_ROOT)/common/includes/xcl2/xcl2.cpp $(HOST_MAIN_SRC)
+CXXFLAGS += -I../../common/includes/xcl2 
+CXXFLAGS += -I../../HLS_library/include
+HOST_SRCS += ../../common/includes/xcl2/xcl2.cpp $(HOST_MAIN_SRC)
 # Host compiler global settings
 CXXFLAGS += -fmessage-length=0 -DHLS_NO_XIL_FPO_LIB
 LDFLAGS += -lrt -lstdc++ 
 
-LIB_SRCDIR := ./libsrc/src
+LIB_SRCDIR := ../../libsrc/src
 
 #ifneq ($(HOST_ARCH), x86)
 #	LDFLAGS += --sysroot=$(SYSROOT)
@@ -121,33 +128,20 @@ ifneq ($(HOST_ARCH), x86)
 endif
 
 # List the corresponding object files (all placed in ./bin)
-HOST_OBJS := ./bin/Parseparam.o \
-             ./bin/Pop.o \
-             ./bin/PatternFactory.o \
-             ./bin/Logger.o \
-             ./bin/AxoDelay.o \
-             ./bin/Globals.o \
-             ./bin/Netw.o \
-             ./bin/Prj.o \
-             ./bin/Analys.o \
-             ./bin/Probe.o 
+# List any additional object files here
+HOST_OBJS := 
 
-CCFLAGS := -std=c++17 -O3 -g -I./libsrc/include/ -I$(XF_PROJ_ROOT)/HLS_library/include -DHLS_NO_XIL_FPO_LIB
-CCFLAGS += $(PARAM_DEFS)
-
-CXXFLAGS += $(PARAM_DEFS)
+CCFLAGS := -std=c++17 -O3 -g -I../../libsrc/include/ -I../../HLS_library/include -DHLS_NO_XIL_FPO_LIB
 
 ############################## Setting up Kernel Variables ##############################
 # Kernel compiler global settings
-VPP_FLAGS += -t $(TARGET) --platform $(DEVICE) --save-temps 
+VPP_FLAGS += -t $(TARGET) --platform $(DEVICE) --save-temps -I../../libsrc/include/
 ifneq ($(TARGET), hw)
 	VPP_FLAGS += -g
 endif
 VPP_FLAGS_CONFIG +=  --config ./configure.cfg
 
-VPP_FLAGS_HLS := --kernel_frequency 100
-
-VPP_FLAGS += $(PARAM_DEFS)
+VPP_FLAGS_HLS := --kernel_frequency $(FREQUENCY)
 
 EXECUTABLE = ./$(HOST_COMPILE)
 EMCONFIG_DIR = $(TEMP_DIR)
@@ -160,7 +154,7 @@ BINARY_CONTAINER_adder_OBJS += $(TEMP_DIR)/$(KERNEL_COMPILE).xo
 ############################## Setting Targets ##############################
 CP = cp -rf
 
-.PHONY: all clean cleanall docs emconfig
+.PHONY: all clean cleanall emconfig run sd_card print host build xclbin test
 all: check-devices $(EXECUTABLE) $(BINARY_CONTAINERS) emconfig sd_card
 
 .PHONY: host
@@ -172,22 +166,37 @@ build: check-vitis $(BINARY_CONTAINERS)
 .PHONY: xclbin
 xclbin: build
 
+############################## Info / Diagnostics ##############################
+.PHONY: print
+print:
+	$(ECHO) "Configuration:"
+	$(ECHO) "  TARGET=$(TARGET)"
+	$(ECHO) "  DEVICE=$(DEVICE)"
+	$(ECHO) "  HOST_ARCH=$(HOST_ARCH)"
+	$(ECHO) "  SYSROOT=$(SYSROOT)"
+	$(ECHO) "  XSA=$(XSA)"
+	$(ECHO) "  TEMP_DIR=$(TEMP_DIR)"
+	$(ECHO) "  BUILD_DIR=$(BUILD_DIR)"
+	$(ECHO) "  EXECUTABLE=$(EXECUTABLE)"
+	$(ECHO) "  KERNEL=$(KERNEL_COMPILE)"
+	$(ECHO) "  FREQUENCY=$(FREQUENCY) MHz"
+
 ############################## Setting Rules for Binary Containers (Building Kernels) ##############################
-$(TEMP_DIR)/$(KERNEL_COMPILE).xo: libsrc/src/$(KERNEL_COMPILE).cpp
+$(TEMP_DIR)/$(KERNEL_COMPILE).xo: ../../libsrc/src/$(KERNEL_COMPILE).cpp
 	mkdir -p $(TEMP_DIR)
-	$(VPP) $(VPP_FLAGS) $(VPP_FLAGS_CONFIG) $(VPP_FLAGS_HLS) -c -k $(KERNEL_COMPILE) --temp_dir $(TEMP_DIR)  -I'$(<D)' -o'$@' '$<' --hls.pre_tcl ./compile_hls.tcl -I ./libsrc/include/
+	$(VPP) $(VPP_FLAGS) $(VPP_FLAGS_CONFIG) $(VPP_FLAGS_HLS) -c -k $(KERNEL_COMPILE) --temp_dir $(TEMP_DIR)  -I'$(<D)' -o'$@' '$<' --hls.pre_tcl ./compile_hls.tcl
 $(BUILD_DIR)/$(KERNEL_COMPILE).xclbin: $(BINARY_CONTAINER_adder_OBJS)
 	mkdir -p $(BUILD_DIR)
 ifeq ($(HOST_ARCH), x86)
 	$(VPP) $(VPP_FLAGS) -l $(VPP_LDFLAGS) --temp_dir $(BUILD_DIR)  -o'$(BUILD_DIR)/$(KERNEL_COMPILE).link.xclbin' $(+) -I ./libsrc/include/
-	$(VPP) -p $(BUILD_DIR)/$(KERNEL_COMPILE).link.xclbin -t $(TARGET) --platform $(DEVICE) --package.out_dir $(PACKAGE_OUT) -o $(BUILD_DIR)/$(KERNEL_COMPILE).xclbin -I ./libsrc/include/
+	$(VPP) -p $(BUILD_DIR)/$(KERNEL_COMPILE).link.xclbin -t $(TARGET) --platform $(DEVICE) --package.out_dir $(PACKAGE_OUT) -o $(BUILD_DIR)/$(KERNEL_COMPILE).xclbin -I ../../libsrc/include/
 else
-	$(VPP) $(VPP_FLAGS) -l $(VPP_LDFLAGS) --temp_dir $(BUILD_DIR) -o'$(BUILD_DIR)/$(KERNEL_COMPILE).xclbin' $(+) -I ./libsrc/include/
+	$(VPP) $(VPP_FLAGS) -l $(VPP_LDFLAGS) --temp_dir $(BUILD_DIR) -o'$(BUILD_DIR)/$(KERNEL_COMPILE).xclbin' $(+) -I ../../libsrc/include/
 endif
 
 ############################## Setting Rules for Host (Building Host Executable) ##############################
 $(EXECUTABLE): $(HOST_SRCS) | $(HOST_OBJS)
-		$(CXX) $(HOST_OBJS) -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -I ./libsrc/include/
+		$(CXX) $(HOST_OBJS) -o $@ $^ $(CXXFLAGS) $(LDFLAGS) -I ../../libsrc/include/
 
 # Pattern rule for compiling the common library sources from LIB_SRCDIR.
 ./bin/%.o: $(LIB_SRCDIR)/%.cpp
