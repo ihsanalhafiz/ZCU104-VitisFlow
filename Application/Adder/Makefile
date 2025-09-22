@@ -102,8 +102,8 @@ CMD_ARGS = $(BUILD_DIR)/$(KERNEL_COMPILE).xclbin
 SDCARD := sd_card
 
 include ../../common/includes/opencl/opencl.mk
-CXXFLAGS += $(opencl_CXXFLAGS) -Wall -O3 -g -std=c++17 `pkg-config --cflags opencv4` -pthread -lgdal -llapack -lblas
-LDFLAGS += $(opencl_LDFLAGS) `pkg-config --libs opencv4` -pthread -lgdal -llapack -lblas
+CXXFLAGS += $(opencl_CXXFLAGS) -Wall -O3 -g -std=c++17 `pkg-config 
+LDFLAGS += $(opencl_LDFLAGS) `pkg-config 
 
 
 ifeq ($(findstring nodma, $(DEVICE)), nodma)
