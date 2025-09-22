@@ -1,0 +1,5 @@
+name: adder
+description: Boot assets for the adder configuration inside the PAC_container container
+revision: 1.0
+assets:
+    zcu104: zcu104
