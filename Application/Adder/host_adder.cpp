@@ -176,13 +176,16 @@ int main(int argc, char **argv) {
     }
     q.finish();
 
-    // Read back
-    std::vector<cl::Memory> fromDevice{bufC};
-    if (q.enqueueMigrateMemObjects(fromDevice, CL_MIGRATE_MEM_OBJECT_HOST) != CL_SUCCESS) {
-        std::cerr << "enqueueMigrateMemObjects to host failed" << "\n";
+    // Read back results
+    if (q.enqueueReadBuffer(
+            bufC,
+            CL_TRUE,
+            0,
+            sizeof(int) * hostC.size(),
+            hostC.data()) != CL_SUCCESS) {
+        std::cerr << "enqueueReadBuffer for bufC failed" << "\n";
         return EXIT_FAILURE;
     }
-    q.finish();
 
     // Verify
     size_t errors = 0;
