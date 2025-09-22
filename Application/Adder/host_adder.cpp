@@ -1,4 +1,6 @@
-#include <CL/cl2.hpp>
+#define CL_HPP_MINIMUM_OPENCL_VERSION 120
+#define CL_HPP_TARGET_OPENCL_VERSION 120
+#include <CL/opencl.hpp>
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
@@ -94,7 +96,8 @@ int main(int argc, char **argv) {
     if (!readBinaryFile(xclbinPath, binary)) {
         return EXIT_FAILURE;
     }
-    cl::Program::Binaries bins{{binary.data(), binary.size()}};
+    cl::Program::Binaries bins;
+    bins.push_back(binary);
     cl::Program program(context, {device}, bins, nullptr, &err);
     if (err != CL_SUCCESS) {
         std::cerr << "Failed to create program from binary" << "\n";
