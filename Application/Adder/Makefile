@@ -45,6 +45,9 @@ help::
 	$(ECHO) "      Command to build xclbin application."
 	$(ECHO) "      By default, HOST_ARCH=x86. HOST_ARCH and EDGE_COMMON_SW is required for SoC shells"
 	$(ECHO) ""
+	$(ECHO) "  make hls_xo TARGET=<sw_emu/hw_emu/hw> DEVICE=<FPGA platform>"
+	$(ECHO) "      Compile kernel only up to .xo and place it under hls_xo/"
+	$(ECHO) ""
 	$(ECHO) "  make host HOST_ARCH=<aarch32/aarch64/x86> EDGE_COMMON_SW=<rootfs and kernel image path>"
 	$(ECHO) "      Command to build host application."
 	$(ECHO) "      By default, HOST_ARCH=x86. HOST_ARCH and EDGE_COMMON_SW is required for SoC shells"
@@ -64,7 +67,7 @@ XF_PROJ_ROOT = $(shell readlink -f $(COMMON_REPO))
 
 EDGE_COMMON_SW := .
 
-DEVICE := /opt/xilinx/2025.1/Vitis/base_platforms/xilinx_zcu104_base_202510_1/xilinx_zcu104_base_202510_1.xpfm
+DEVICE := /opt/xilinx/platforms/xilinx_zcu104_base_202320_1/xilinx_zcu104_base_202320_1.xpfm
 
 TARGET := hw
 HOST_ARCH := aarch64
@@ -85,6 +88,7 @@ XSA := $(call device2xsa, $(DEVICE))
 endif
 TEMP_DIR := ./_x.$(TARGET).$(XSA)
 BUILD_DIR := ./build_dir.$(TARGET).$(XSA)
+HLS_XO_DIR := ./hls_xo
 
 # SoC variables
 RUN_APP_SCRIPT = ./run_app.sh
@@ -154,7 +158,7 @@ BINARY_CONTAINER_adder_OBJS += $(TEMP_DIR)/$(KERNEL_COMPILE).xo
 ############################## Setting Targets ##############################
 CP = cp -rf
 
-.PHONY: all clean cleanall emconfig run sd_card print host build xclbin test
+.PHONY: all clean cleanall emconfig run sd_card print host build xclbin test hls_xo
 all: check-devices $(EXECUTABLE) $(BINARY_CONTAINERS) emconfig sd_card
 
 .PHONY: host
@@ -177,6 +181,7 @@ print:
 	$(ECHO) "  XSA=$(XSA)"
 	$(ECHO) "  TEMP_DIR=$(TEMP_DIR)"
 	$(ECHO) "  BUILD_DIR=$(BUILD_DIR)"
+	$(ECHO) "  HLS_XO_DIR=$(HLS_XO_DIR)"
 	$(ECHO) "  EXECUTABLE=$(EXECUTABLE)"
 	$(ECHO) "  KERNEL=$(KERNEL_COMPILE)"
 	$(ECHO) "  FREQUENCY=$(FREQUENCY) MHz"
@@ -185,6 +190,14 @@ print:
 $(TEMP_DIR)/$(KERNEL_COMPILE).xo: ../../libsrc/src/$(KERNEL_COMPILE).cpp
 	mkdir -p $(TEMP_DIR)
 	$(VPP) $(VPP_FLAGS) $(VPP_FLAGS_CONFIG) $(VPP_FLAGS_HLS) -c -k $(KERNEL_COMPILE) --temp_dir $(TEMP_DIR)  -I'$(<D)' -o'$@' '$<' --hls.pre_tcl ./compile_hls.tcl
+
+# Build only the XO into hls_xo directory
+.PHONY: hls_xo
+hls_xo: check-vitis $(HLS_XO_DIR)/$(KERNEL_COMPILE).xo
+
+$(HLS_XO_DIR)/$(KERNEL_COMPILE).xo: ../../libsrc/src/$(KERNEL_COMPILE).cpp
+	mkdir -p $(HLS_XO_DIR)
+	$(VPP) $(VPP_FLAGS) $(VPP_FLAGS_CONFIG) $(VPP_FLAGS_HLS) -c -k $(KERNEL_COMPILE) --temp_dir $(HLS_XO_DIR)  -I'$(<D)' -o'$@' '$<' --hls.pre_tcl ./compile_hls.tcl
 $(BUILD_DIR)/$(KERNEL_COMPILE).xclbin: $(BINARY_CONTAINER_adder_OBJS)
 	mkdir -p $(BUILD_DIR)
 ifeq ($(HOST_ARCH), x86)

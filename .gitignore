@@ -1,6 +1,6 @@
 **/_x
 **/_x.hw.
-**/_x.hw.xilinx_zcu104_base_202510_1
+**/_x.hw.xilinx_zcu104_base_202320_1
 **/_x.hw_emu.
 **/_x.sw_emu.
 **/build_dir.hw.
@@ -13,7 +13,10 @@
 **/emconfig.json
 **/.Xil
 **/.ipcache
-**/build_dir.hw.xilinx_zcu104_base_202510_1
+**/build_dir.hw.xilinx_zcu104_base_202320_1
 **/v++*
 **/xcd.log
 **/bin
+**/*.log
+**/*.err
+**/hls_xo
