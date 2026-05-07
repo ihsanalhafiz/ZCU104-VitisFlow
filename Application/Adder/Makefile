@@ -153,16 +153,22 @@ EMU_DIR = $(SDCARD)/data/emulation
 
 ############################## Declaring Binary Containers ##############################
 BINARY_CONTAINERS += $(BUILD_DIR)/$(KERNEL_COMPILE).xclbin
-BINARY_CONTAINER_adder_OBJS += $(TEMP_DIR)/$(KERNEL_COMPILE).xo
+BINARY_CONTAINER_OBJS += $(TEMP_DIR)/$(KERNEL_COMPILE).xo
 
 ############################## Setting Targets ##############################
 CP = cp -rf
 
-.PHONY: all clean cleanall emconfig run sd_card print host build xclbin test hls_xo
+.PHONY: all clean cleanall emconfig run sd_card print host host_on_board build xclbin test hls_xo
 all: check-devices $(EXECUTABLE) $(BINARY_CONTAINERS) emconfig sd_card
 
 .PHONY: host
 host: $(EXECUTABLE)
+
+# Native host build for the Ubuntu system running directly on the ZCU104 board.
+# HOST_ARCH=x86 selects the native g++ path in this inherited Vitis Makefile;
+# on the board, that native compiler still creates an aarch64 executable.
+host_on_board:
+	$(MAKE) host HOST_ARCH=x86 XILINX_XRT=/usr XILINX_VIVADO=/usr
 
 .PHONY: build
 build: check-vitis $(BINARY_CONTAINERS)
@@ -198,7 +204,7 @@ hls_xo: check-vitis $(HLS_XO_DIR)/$(KERNEL_COMPILE).xo
 $(HLS_XO_DIR)/$(KERNEL_COMPILE).xo: ../../libsrc/src/$(KERNEL_COMPILE).cpp
 	mkdir -p $(HLS_XO_DIR)
 	$(VPP) $(VPP_FLAGS) $(VPP_FLAGS_CONFIG) $(VPP_FLAGS_HLS) -c -k $(KERNEL_COMPILE) --temp_dir $(HLS_XO_DIR)  -I'$(<D)' -o'$@' '$<' --hls.pre_tcl ./compile_hls.tcl
-$(BUILD_DIR)/$(KERNEL_COMPILE).xclbin: $(BINARY_CONTAINER_adder_OBJS)
+$(BUILD_DIR)/$(KERNEL_COMPILE).xclbin: $(BINARY_CONTAINER_OBJS)
 	mkdir -p $(BUILD_DIR)
 ifeq ($(HOST_ARCH), x86)
 	$(VPP) $(VPP_FLAGS) -l $(VPP_LDFLAGS) --temp_dir $(BUILD_DIR)  -o'$(BUILD_DIR)/$(KERNEL_COMPILE).link.xclbin' $(+) -I ./libsrc/include/
