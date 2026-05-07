@@ -153,7 +153,7 @@ EMU_DIR = $(SDCARD)/data/emulation
 
 ############################## Declaring Binary Containers ##############################
 BINARY_CONTAINERS += $(BUILD_DIR)/$(KERNEL_COMPILE).xclbin
-BINARY_CONTAINER_adder_OBJS += $(TEMP_DIR)/$(KERNEL_COMPILE).xo
+BINARY_CONTAINER_OBJS += $(TEMP_DIR)/$(KERNEL_COMPILE).xo
 
 ############################## Setting Targets ##############################
 CP = cp -rf
@@ -198,7 +198,7 @@ hls_xo: check-vitis $(HLS_XO_DIR)/$(KERNEL_COMPILE).xo
 $(HLS_XO_DIR)/$(KERNEL_COMPILE).xo: ../../libsrc/src/$(KERNEL_COMPILE).cpp
 	mkdir -p $(HLS_XO_DIR)
 	$(VPP) $(VPP_FLAGS) $(VPP_FLAGS_CONFIG) $(VPP_FLAGS_HLS) -c -k $(KERNEL_COMPILE) --temp_dir $(HLS_XO_DIR)  -I'$(<D)' -o'$@' '$<' --hls.pre_tcl ./compile_hls.tcl
-$(BUILD_DIR)/$(KERNEL_COMPILE).xclbin: $(BINARY_CONTAINER_adder_OBJS)
+$(BUILD_DIR)/$(KERNEL_COMPILE).xclbin: $(BINARY_CONTAINER_OBJS)
 	mkdir -p $(BUILD_DIR)
 ifeq ($(HOST_ARCH), x86)
 	$(VPP) $(VPP_FLAGS) -l $(VPP_LDFLAGS) --temp_dir $(BUILD_DIR)  -o'$(BUILD_DIR)/$(KERNEL_COMPILE).link.xclbin' $(+) -I ./libsrc/include/
