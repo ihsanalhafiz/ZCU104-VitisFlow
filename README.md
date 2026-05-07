@@ -1,155 +1,374 @@
-# ZCU104 Vitis Flow: Build HLS Kernel, Generate Bitstream, Create PAC
+# ZCU104 Vitis Flow: Beginner-Friendly HLS to FPGA Template
 
-This repository provides a minimal, repeatable flow to:
-- Develop an HLS kernel
-- Run HLS compilation to produce a kernel `.xo`
-- Build the hardware bitstream and `.xclbin`
-- Package a Vitis Platform Assets Container (PAC) for ZCU104
+This repository is a small public template for building a Vitis HLS kernel for
+the **AMD/Xilinx ZCU104** board from a normal Ubuntu terminal. It does **not**
+require Slurm, `sbatch`, or a cluster job scheduler.
 
-The provided example is `Adder`. You can copy it to start your own kernel/application.
+The example application is an `Adder` kernel. Use it first to verify your Vitis
+installation, then copy it when you are ready to create your own kernel.
+
+## What this flow does
+
+Starting from C/C++ HLS code, the flow helps you:
+
+1. Compile the HLS kernel into a Vitis kernel object (`.xo`).
+2. Run hardware implementation and generate an FPGA binary (`.xclbin`).
+3. Package the generated boot assets, bitstream, and `.xclbin` into a Vitis
+   Platform Assets Container (PAC) for Ubuntu-based ZCU104 deployment.
 
 ## Prerequisites
 
-- Xilinx Vitis 2023.2 installed and available on the build nodes
-- ZCU104 platform installed (default path used by this repo):
-  - `/opt/xilinx/platforms/xilinx_zcu104_base_202320_1/xilinx_zcu104_base_202320_1.xpfm`
-- SLURM access (the flow uses `sbatch`) and a suitable partition/queue
-- On clusters using Environment Modules:
-  - `module load xilinx/2023.2`
+Install or prepare these items before running the flow:
 
-Tip: All provided `*.sbatch` scripts load `xilinx/2023.2` and submit to `fpgaserv`. Adjust these to match your environment.
+- Ubuntu development machine with AMD/Xilinx **Vitis 2023.2** installed.
+- ZCU104 base platform installed. The default path used by this repository is:
 
-## Repository Layout (key paths)
+  ```bash
+  /opt/xilinx/platforms/xilinx_zcu104_base_202320_1/xilinx_zcu104_base_202320_1.xpfm
+  ```
 
-- `libsrc/src/` — put your HLS kernel source here (e.g. `mykernel.cpp`)
-- `libsrc/include/` — headers for kernels (e.g. add your declarations to `hls_header.h`)
-- `Application/Adder/` — example application and build flow for kernel `adder`
-  - `Makefile` — controls HLS, bitstream build, host build
-  - `hls_check.sbatch` — SLURM job to run HLS (produces `.xo` under `hls_xo/`)
-  - `synthesis_kernel.sbatch` — SLURM job to build `.xclbin` (bitstream)
-  - `create_vitis_pac.sbatch` — SLURM job to create a PAC using `create_vitis_pac.sh`
-  - `create_vitis_pac.sh` — PAC creation script with validation and packaging logic
-  - `host_adder.cpp` — example host application
+- Vitis command-line tools available in your shell. For a local installation,
+  this usually means running a command similar to:
 
-## Quick Start (use the Adder example as-is)
+  ```bash
+  source /tools/Xilinx/Vitis/2023.2/settings64.sh
+  ```
 
-1) Submit HLS compile (produces `.xo` and HLS reports):
-   - `cd Application/Adder`
-   - `sbatch hls_check.sbatch`
+  If your path is different, use the setup script that matches your Vitis
+  installation.
 
-2) Submit hardware build (produces `.xclbin`):
-   - `sbatch synthesis_kernel.sbatch`
+> **Tip:** If you do not want to source Vitis manually before each command, pass
+> `VITIS_SETTINGS` when you run a script, for example:
+>
+> ```bash
+> VITIS_SETTINGS=/tools/Xilinx/Vitis/2023.2/settings64.sh ./build_hls.sh
+> ```
 
-3) Create a PAC from the built artifacts:
-   - `sbatch create_vitis_pac.sbatch -- --name adder`
+## Repository layout
 
-4) Monitor jobs and logs:
-   - `squeue -u $USER`
-   - HLS logs: `hls_check_<jobid>.log` / `.err`
-   - Build logs: `compile_<jobid>.log` / `.err`
-   - PAC logs: `create_pac_<jobid>.log` / `.err`
+Key files and folders:
 
-## Create Your Own Kernel/Application
+```text
+libsrc/src/adder.cpp                 # Example HLS kernel source
+libsrc/include/hls_header.h          # HLS function declarations shared by host/kernel code
+Application/Adder/                   # Example Vitis application flow
+Application/Adder/flow_settings.sh   # Default local build settings to edit first
+Application/Adder/build_hls.sh       # Step 1: build the .xo kernel object
+Application/Adder/build_hardware.sh  # Step 2: build the hardware .xclbin
+Application/Adder/package_pac.sh     # Step 3: create the PAC container
+Application/Adder/run_full_flow.sh   # Optional: run steps 1-3 in order
+Application/Adder/create_vitis_pac.sh # Lower-level PAC creation helper
+Application/Adder/Makefile           # Vitis build rules used by the scripts
+```
 
-1) Add your HLS kernel source and headers
-   - Put your kernel source in `libsrc/src/`, for example `mykernel.cpp`.
-   - Add/declare the top function signature in `libsrc/include/hls_header.h` as needed by your kernel.
+## Quick start: build the Adder example
 
-2) Create an app folder from the example
-   - Copy the example app:
-     - `cp -r Application/Adder Application/MyKernel`
-   - Inside `Application/MyKernel`, update naming to match your kernel:
-     - In `Makefile` change:
-       - `KERNEL_COMPILE := mykernel`
-       - `HOST_COMPILE := host_mykernel` (optional; adjust host file name accordingly)
-       - `HOST_MAIN_SRC := ./$(HOST_COMPILE).cpp` (or point to your host source)
-       - `DEVICE := /opt/xilinx/platforms/xilinx_zcu104_base_202320_1/xilinx_zcu104_base_202320_1.xpfm` (adjust if needed)
-       - `FREQUENCY := 300` (optional kernel clock target in MHz)
-       - `HOST_ARCH := aarch64` (keep for Zynq MPSoC; use `x86` for x86 hosts)
+Open a terminal at the repository root, then follow these steps.
 
-3) Update SLURM scripts for your kernel name
-   - Edit `hls_check.sbatch` and set:
-     - `make hls_xo KERNEL_COMPILE=mykernel`
-   - Edit `synthesis_kernel.sbatch` and set:
-     - `make build KERNEL_COMPILE=mykernel`
-   - Optionally rename the job names and outputs in the `#SBATCH` lines.
+### 1. Load the Vitis environment
 
-4) Run your flow
-   - From `Application/MyKernel`:
-     - `sbatch hls_check.sbatch`
-     - `sbatch synthesis_kernel.sbatch`
-     - Create PAC:
-       - `sbatch create_vitis_pac.sbatch -- --name mykernel`
-       - Options are described below; defaults target ZCU104.
+```bash
+source /tools/Xilinx/Vitis/2023.2/settings64.sh
+```
 
-## What Each Step Does and Where Outputs Go
+Check that `v++` is visible:
 
-- HLS (`make hls_xo ...` via `hls_check.sbatch`)
-  - Compiles `libsrc/src/<kernel>.cpp` to `<kernel>.xo`
-  - Output dir: `Application/<App>/hls_xo/`
-  - HLS reports: under `hls_xo/...` and `hls_xo/<kernel>/.../report`
+```bash
+v++ --version
+```
 
-- Hardware build (`make build ...` via `synthesis_kernel.sbatch`)
-  - Links kernel objects and produces `<kernel>.xclbin`
-  - Default output dir: `Application/<App>/build_dir.hw.xilinx_zcu104_base_202320_1/`
-  - Intermediate logs under `_x.hw.xilinx_zcu104_base_202320_1/` and `build_dir.hw...`
+If `v++` is not found, verify the path to `settings64.sh` for your machine.
 
-- PAC creation (`create_vitis_pac.sbatch` → `create_vitis_pac.sh`)
-  - Validates platform files and build outputs
-  - Copies boot assets, `system.bit`, and the `.xclbin` into a PAC structure
-  - Default PAC output dir: `PAC_container/`
-    - `PAC_container/hwconfig/<config>/<board>/` contains boot files, `system.bit`, and `.xclbin`
+### 2. Review the local settings
 
-## PAC Script Usage (details)
+```bash
+cd Application/Adder
+nano flow_settings.sh
+```
 
-Submit via SLURM (note the `--` before script args so SLURM doesn’t parse them):
+For most users, the most important line is `PLATFORM_PATH`. Make sure it points
+to your installed ZCU104 `.xpfm` file.
 
-- `sbatch create_vitis_pac.sbatch -- --name <kernel> [--board zcu104] [--xclbin-dir DIR] [--xclbin FILE] [--container DIR] [--platform FILE]`
+Default settings are:
 
-Defaults used by the wrapper (`create_vitis_pac.sbatch`):
-- `--name/--kernel`: kernel name (default `adder`)
-- `--board`: `zcu104` (others supported by the script: zcu102, zcu104, zcu106, zcu111, zcu208, zcu216)
-- `--xclbin-dir`: `./build_dir.hw.xilinx_zcu104_base_202320_1`
-- `--xclbin`: optional explicit `.xclbin` path (overrides dir/name)
-- `--container`: `../../PAC_container`
-- `--platform`: `/opt/xilinx/platforms/.../xilinx_zcu104_base_202320_1.xpfm`
+```bash
+KERNEL_NAME=adder
+BOARD=zcu104
+PLATFORM_PATH=/opt/xilinx/platforms/xilinx_zcu104_base_202320_1/xilinx_zcu104_base_202320_1.xpfm
+TARGET=hw
+HOST_ARCH=aarch64
+FREQUENCY=300
+PAC_CONTAINER=../../PAC_container
+```
 
-Run the packager script directly (without SLURM) if preferred:
-- `cd Application/<App>`
-- `./create_vitis_pac.sh -n <kernel> -v . -b zcu104 -x ./build_dir.hw.xilinx_zcu104_base_202320_1/<kernel>.xclbin -c ../../PAC_container -p /opt/xilinx/platforms/xilinx_zcu104_base_202320_1/xilinx_zcu104_base_202320_1.xpfm`
+You may edit `flow_settings.sh`, or override values on the command line.
 
+### 3. Build the HLS kernel object (`.xo`)
 
-## Monitoring and Cleaning
+```bash
+./build_hls.sh
+```
 
-- Monitor SLURM jobs: `squeue -u $USER`
-- Inspect logs in your app folder:
-  - HLS: `hls_check_<jobid>.log` / `.err`
-  - Build: `compile_<jobid>.log` / `.err`
-  - PAC: `create_pac_<jobid>.log` / `.err`
-- Clean intermediates:
-  - `make clean` (remove non-hw files)
-  - `make cleanall` (remove all generated outputs including `build_dir*`, `package.*`, `sd_card*`)
+Expected main output:
+
+```text
+Application/Adder/hls_xo/adder.xo
+```
+
+This step also produces HLS reports inside the `hls_xo/` directory.
+
+### 4. Build the FPGA hardware binary (`.xclbin`)
+
+```bash
+./build_hardware.sh
+```
+
+Expected main output:
+
+```text
+Application/Adder/build_dir.hw.xilinx_zcu104_base_202320_1/adder.xclbin
+```
+
+This is the slowest step. Depending on your machine, it can take tens of minutes
+or several hours.
+
+### 5. Create the PAC container
+
+```bash
+./package_pac.sh
+```
+
+Expected output location:
+
+```text
+PAC_container/hwconfig/adder/zcu104/
+```
+
+The PAC folder contains boot collateral, `system.bit`, the `.xclbin`, and a
+`manifest.yaml` file.
+
+### Optional: run everything with one command
+
+After checking `flow_settings.sh`, you can run all three steps in order:
+
+```bash
+./run_full_flow.sh
+```
+
+For beginners, running the separate steps first is recommended because it is
+easier to see where a problem occurs.
+
+## Command-line overrides
+
+All wrapper scripts use the defaults from `flow_settings.sh`, but common values
+can also be passed at runtime.
+
+Examples:
+
+```bash
+./build_hls.sh --kernel adder
+./build_hardware.sh --kernel adder --frequency 250
+./package_pac.sh --kernel adder --board zcu104
+PLATFORM_PATH=/my/platform/path/xilinx_zcu104_base_202320_1.xpfm ./build_hls.sh
+VITIS_SETTINGS=/tools/Xilinx/Vitis/2023.2/settings64.sh ./build_hardware.sh
+```
+
+## Creating your own kernel/application
+
+Use the Adder example as a known-good starting point.
+
+### 1. Add your HLS code
+
+- Add your kernel source in `libsrc/src/`, for example:
+
+  ```text
+  libsrc/src/mykernel.cpp
+  ```
+
+- Add or update the function declaration in:
+
+  ```text
+  libsrc/include/hls_header.h
+  ```
+
+The kernel file name and top function should match the kernel name you build.
+For example, `mykernel.cpp` should provide a top function named `mykernel` unless
+you intentionally configure Vitis differently.
+
+### 2. Copy the example application
+
+From the repository root:
+
+```bash
+cp -r Application/Adder Application/MyKernel
+cd Application/MyKernel
+```
+
+### 3. Update the settings
+
+Edit `Application/MyKernel/flow_settings.sh`:
+
+```bash
+KERNEL_NAME="${KERNEL_NAME:-mykernel}"
+```
+
+Also review:
+
+- `PLATFORM_PATH` if your ZCU104 platform is not installed in the default path.
+- `FREQUENCY` if you need a different kernel clock target.
+- `HOST_ARCH`; keep `aarch64` for the ZCU104 Arm target.
+- `SYSROOT` if your host build needs an Arm sysroot.
+
+### 4. Update or replace host code
+
+The Vitis host application for the example is:
+
+```text
+Application/Adder/host_adder.cpp
+```
+
+For your own application, create a matching host file and update these Makefile
+variables if needed:
+
+```make
+HOST_COMPILE := host_mykernel
+HOST_MAIN_SRC := ./$(HOST_COMPILE).cpp
+```
+
+### 5. Run the local flow
+
+From your application folder:
+
+```bash
+./build_hls.sh
+./build_hardware.sh
+./package_pac.sh
+```
+
+## What each script does
+
+### `build_hls.sh`
+
+Runs:
+
+```bash
+make hls_xo KERNEL_COMPILE=<kernel>
+```
+
+Main outputs:
+
+- `hls_xo/<kernel>.xo`
+- HLS reports under `hls_xo/`
+
+### `build_hardware.sh`
+
+Runs:
+
+```bash
+make build KERNEL_COMPILE=<kernel>
+```
+
+Main outputs:
+
+- `build_dir.hw.xilinx_zcu104_base_202320_1/<kernel>.xclbin`
+- Vivado/Vitis implementation logs and intermediate files
+
+### `package_pac.sh`
+
+Runs `create_vitis_pac.sh` with beginner-friendly defaults.
+
+Main outputs:
+
+- `PAC_container/hwconfig/<kernel>/zcu104/`
+- `PAC_container/hwconfig/<kernel>/manifest.yaml`
+
+## Cleaning generated files
+
+From an application folder such as `Application/Adder`:
+
+```bash
+make clean
+```
+
+For a deeper clean:
+
+```bash
+make cleanall
+```
+
+Generated build directories such as `hls_xo/`, `_x.hw.../`, `build_dir.hw.../`,
+`package.hw/`, and log files are ignored by Git.
 
 ## Troubleshooting
 
-- Incorrect module/platform
-  - Ensure `module load xilinx/2023.2` (or set your environment appropriately).
-  - Verify `DEVICE` in the `Makefile` points to a valid `.xpfm`.
+### `v++ was not found in PATH`
 
-- HLS does not find your kernel
-  - Confirm your file exists: `libsrc/src/<kernel>.cpp`.
-  - Ensure `KERNEL_COMPILE := <kernel>` in the app `Makefile` and in `hls_check.sbatch`.
+Load the Vitis environment first:
 
-- No `.xclbin` produced
-  - Check `compile_<jobid>.log` and `build_dir.hw.../` for errors.
-  - Run `make print` to verify `TARGET`, `DEVICE`, and `KERNEL` values.
+```bash
+source /tools/Xilinx/Vitis/2023.2/settings64.sh
+```
 
-- PAC creation fails
-  - Confirm platform directory structure (boot files) exists under `/opt/xilinx/platforms/.../sw/<platform_name>/boot`.
-  - Ensure `<kernel>.xclbin` is present in `build_dir.hw.<platform_name>/`.
-  - Re-run with `-h/--help` to check required arguments.
+Or run the wrapper with `VITIS_SETTINGS`:
 
-## Notes
+```bash
+VITIS_SETTINGS=/tools/Xilinx/Vitis/2023.2/settings64.sh ./build_hls.sh
+```
 
-- Defaults target ZCU104; other Zynq boards are supported by the PAC script but will require a matching platform and app build.
-- Adjust `#SBATCH` directives in the SLURM scripts (time, partition, CPUs, memory) to fit your cluster.
+### Platform `.xpfm` file not found
+
+Edit `Application/Adder/flow_settings.sh` and set `PLATFORM_PATH` to your local
+ZCU104 platform file, or override it when running a command:
+
+```bash
+PLATFORM_PATH=/path/to/xilinx_zcu104_base_202320_1.xpfm ./build_hardware.sh
+```
+
+### Kernel source not found
+
+Make sure the kernel name matches the source file:
+
+```text
+KERNEL_NAME=adder       -> libsrc/src/adder.cpp
+KERNEL_NAME=mykernel    -> libsrc/src/mykernel.cpp
+```
+
+### PAC packaging cannot find the hardware build directory
+
+Run the hardware build first:
+
+```bash
+./build_hardware.sh
+```
+
+Then run:
+
+```bash
+./package_pac.sh
+```
+
+### Build timing or implementation fails
+
+Hardware implementation is sensitive to timing constraints, platform versions,
+and kernel design. Start by checking:
+
+- The terminal output from `./build_hardware.sh`.
+- Vitis/Vivado logs under `_x.hw.xilinx_zcu104_base_202320_1/` and
+  `build_dir.hw.xilinx_zcu104_base_202320_1/`.
+- Whether `FREQUENCY` in `flow_settings.sh` is too aggressive for your design.
+
+## Notes for former Slurm users
+
+Older revisions of this template used `*.sbatch` files and commands such as
+`sbatch hls_check.sbatch`. Those files have been replaced by normal local shell
+scripts:
+
+```text
+hls_check.sbatch          -> build_hls.sh
+synthesis_kernel.sbatch   -> build_hardware.sh
+create_vitis_pac.sbatch   -> package_pac.sh
+```
+
+Run the scripts directly from a regular Ubuntu terminal. If you personally use a
+cluster, you can still wrap these scripts in your own scheduler commands, but the
+template no longer depends on Slurm.
